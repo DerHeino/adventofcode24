@@ -44,7 +44,6 @@ func main() {
 
 	// split into arrays
 	columnMap := convertToIntMap(body)
-	//_ = columnMap
 
 	// sort arrays
 	sortInAscendingOrder(columnMap["left"])
@@ -62,8 +61,21 @@ func main() {
 		dif += int(math.Abs(float64(currentDif)))
 	}
 
-	// return sum
-	fmt.Printf("Result: %d\n", dif)
+	fmt.Printf("Result Part 1: %d\n", dif)
+
+	//////// PART 2 ////////
+
+	// create new map with "right" slice values as key and # as value
+	occuranceMap := countOccurances(right)
+
+	// multiply "left" slice values with its value entry in occuranceMap
+	res := 0
+	for _, value := range columnMap["left"] {
+		currentRes := value * occuranceMap[value]
+		res += currentRes
+	}
+
+	fmt.Printf("Result Part 2: %d\n", res)
 }
 
 func retrieveSession() string {
@@ -117,9 +129,6 @@ func convertToIntMap(b []byte) map[string][]int {
 		flushByteBuffer(&buf)
 	}
 
-	//fmt.Printf("%v\n%v", left, right)
-	//fmt.Printf("%d, %d", len(left), len(right))
-
 	columns := make(map[string][]int, 2)
 	columns["left"] = left
 	columns["right"] = right
@@ -137,4 +146,28 @@ func sortInAscendingOrder(slice []int) {
 	sort.Slice(slice, func(i, j int) bool {
 		return slice[i] < slice[j]
 	})
+}
+
+//////// PART 2 function implementations ////////
+
+func countOccurances(slice []int) map[int]int {
+	simpleMap := make(map[int]int, len(slice))
+
+	for i := 0; i < len(slice); {
+		currentValue := slice[i]
+		occurance := 0
+
+		for {
+			if i+occurance < len(slice) && currentValue == slice[i+occurance] {
+				occurance++
+			} else {
+				break
+			}
+		}
+
+		simpleMap[currentValue] = occurance
+		i = i + occurance
+	}
+
+	return simpleMap
 }
