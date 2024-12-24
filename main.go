@@ -56,17 +56,31 @@ func retrieveSession() string {
 
 //////// PART 1 implementation ////////
 
-// read input into double array, 0 0 top left
-// create struct of the guard
-// implement algorithm (u= -1 0, down= 1 0, left 0 -1, right 0 1)
-
+// double array, 0(y) 0(x) top left
+// coordinate in a field is called "tile"
 type Field struct {
 	field        [][]rune
 	obsturctions int
 	open         int
-	walked       int
 	yBorder      int
 	xBorder      int
+	distinct     int
+}
+
+func (f *Field) isObstacle(yPos int, xPos int) bool {
+	return f.field[yPos][xPos] == '#'
+}
+
+func (f *Field) isNextObstacle(g Guard) bool {
+	yObstacle := g.currentPos.yPos + g.step.yPos
+	xObstacle := g.currentPos.xPos + g.step.xPos
+
+	obstaclePos := Position{yObstacle, xObstacle}
+	if obstaclePos.isInArea(f.yBorder, f.xBorder) {
+		return f.isObstacle(yObstacle, xObstacle)
+	} else {
+		return false
+	}
 }
 
 func (f Field) toString() (s string) {
@@ -80,15 +94,18 @@ func (f Field) toString() (s string) {
 }
 
 type Position struct {
-	yPos      int
-	xPos      int
-	direction rune // should be in Guard, but I'm lazy
+	yPos int
+	xPos int
 }
 
-type Guard struct {
-	currentPos Position
-	direction  Position
-	path       []Position
+func (p *Position) isInArea(yBorder int, xBorder int) bool {
+	if p.yPos < 0 || p.yPos >= yBorder {
+		return false
+	}
+	if p.xPos < 0 || p.xPos >= xBorder {
+		return false
+	}
+	return true
 }
 
 const (
@@ -99,6 +116,56 @@ const (
 	NONE  = 0
 )
 
+type Guard struct {
+	currentPos Position
+	direction  rune
+	step       Position
+	path       []Position
+}
+
+func (g *Guard) isInArea(yBorder int, xBorder int) bool {
+	return g.currentPos.isInArea(yBorder, xBorder)
+}
+
+func (g *Guard) changeDirection(direction rune) {
+	switch g.direction = direction; g.direction {
+	case '^':
+		g.step.yPos = -1
+		g.step.xPos = 0
+	case 'v':
+		g.step.yPos = 1
+		g.step.xPos = 0
+	case '<':
+		g.step.yPos = 0
+		g.step.xPos = -1
+	case '>':
+		g.step.yPos = 0
+		g.step.xPos = 1
+	default:
+		log.Fatalf("chageDirection: Illegal argument '%s'", string(direction))
+	}
+}
+
+func (g *Guard) turn() {
+	switch g.direction {
+	case UP:
+		g.changeDirection(RIGHT)
+	case RIGHT:
+		g.changeDirection(DOWN)
+	case DOWN:
+		g.changeDirection(LEFT)
+	case LEFT:
+		g.changeDirection(UP)
+	}
+}
+
+func (g *Guard) walk() {
+	newPos := Position{g.currentPos.yPos + g.step.yPos, g.currentPos.xPos + g.step.xPos}
+	g.currentPos = newPos
+	g.path = append(g.path, newPos)
+}
+
+// initialize Field and Guard with start Position
 func startPuzzle(body []byte) {
 	var puzzleMap = new(Field)
 	var guard = new(Guard)
@@ -113,8 +180,8 @@ func startPuzzle(body []byte) {
 			case value == byte('.'):
 				puzzleMap.open += 1
 			case isGuard(value):
-				guard.currentPos = Position{len(puzzleMap.field) - 1, len(row) - 1, 0}
-				guard.direction = changeDirection(rune(value))
+				guard.currentPos = Position{len(puzzleMap.field) - 1, len(row) - 1}
+				guard.changeDirection(rune(value))
 				guard.path = make([]Position, 200)
 				guard.path = append(guard.path, guard.currentPos)
 			}
@@ -141,47 +208,9 @@ func isGuard(symbol byte) bool {
 	}
 }
 
-func changeDirection(symbol rune) (direction Position) {
-	switch symbol {
-	case '^':
-		direction.yPos = -1
-		direction.direction = UP
-	case 'v':
-		direction.yPos = 1
-		direction.direction = DOWN
-	case '<':
-		direction.xPos = -1
-		direction.direction = LEFT
-	case '>':
-		direction.xPos = 1
-		direction.direction = RIGHT
-	}
-	return
-}
-
-func nextDirection(currentDirection rune) Position {
-	switch currentDirection {
-	case UP:
-		return changeDirection(RIGHT)
-	case RIGHT:
-		return changeDirection(DOWN)
-	case DOWN:
-		return changeDirection(LEFT)
-	case LEFT:
-		return changeDirection(UP)
-	}
-	log.Fatalf("nextDirection: Illegal argument %d!", currentDirection)
-	return Position{}
-}
-
-func isObstacle(symbol rune) bool {
-	return symbol == '#'
-}
-
-// Run following the algorithm:
-// Walk until obstacle, turn 90 degrees if before one and repeat
-// Stop if outside border
-
+// runs algorithm:
+// Guard walks until obstacle, then turns 90 degrees
+// ends if Guard is outside Field and calculates distinct tiles walked inside Field
 func runPuzzle(puzzleMap Field, guard Guard) {
 	for {
 		if !guard.isInArea(puzzleMap.yBorder, puzzleMap.xBorder) {
@@ -200,46 +229,15 @@ func runPuzzle(puzzleMap Field, guard Guard) {
 		if pos.isInArea(puzzleMap.yBorder, puzzleMap.xBorder) {
 			if puzzleMap.field[pos.yPos][pos.xPos] != 'X' {
 				puzzleMap.field[pos.yPos][pos.xPos] = 'X'
-				puzzleMap.walked += 1
+				puzzleMap.distinct += 1
 			}
 		}
 	}
 
-	fmt.Printf("Distinct positions walked: %d\n", puzzleMap.walked)
+	fmt.Printf("Distinct positions walked: %d\n", puzzleMap.distinct)
 }
 
-func (f Field) isNextObstacle(g Guard) bool {
-	yObstacle := g.currentPos.yPos + g.direction.yPos
-	xObstacle := g.currentPos.xPos + g.direction.xPos
+//////// PART 2 ////////
 
-	obstaclePos := Position{yObstacle, xObstacle, 0}
-	if obstaclePos.isInArea(f.yBorder, f.xBorder) {
-		return isObstacle(f.field[yObstacle][xObstacle])
-	} else {
-		return false
-	}
-}
-
-func (g *Guard) walk() {
-	newPos := Position{g.currentPos.yPos + g.direction.yPos, g.currentPos.xPos + g.direction.xPos, 0}
-	g.currentPos = newPos
-	g.path = append(g.path, newPos)
-}
-
-func (g *Guard) turn() {
-	g.direction = nextDirection(g.direction.direction)
-}
-
-func (g *Guard) isInArea(yBorder int, xBorder int) bool {
-	return g.currentPos.isInArea(yBorder, xBorder)
-}
-
-func (p *Position) isInArea(yBorder int, xBorder int) bool {
-	if p.yPos < 0 || p.yPos >= yBorder {
-		return false
-	}
-	if p.xPos < 0 || p.xPos >= xBorder {
-		return false
-	}
-	return true
-}
+// It should be enough if u look at an already visited plate after a turn
+// to determine if the guard is stuck in a loop
