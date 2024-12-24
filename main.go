@@ -6,11 +6,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 )
 
 var DAY = "6"
+var PART_TWO = true
 
 func main() {
 
@@ -68,7 +70,12 @@ type Field struct {
 }
 
 func (f *Field) isObstacle(yPos int, xPos int) bool {
-	return f.field[yPos][xPos] == '#'
+	symbol := f.field[yPos][xPos]
+	return symbol == '#' || symbol == 'O'
+}
+
+func (f *Field) isOpen(yPos int, xPos int) bool {
+	return f.field[yPos][xPos] == '.'
 }
 
 func (f *Field) isNextObstacle(g Guard) bool {
@@ -165,6 +172,10 @@ func (g *Guard) walk() {
 	g.path = append(g.path, newPos)
 }
 
+func (g *Guard) preview() Position {
+	return Position{g.currentPos.yPos + g.step.yPos, g.currentPos.xPos + g.step.xPos}
+}
+
 // initialize Field and Guard with start Position
 func startPuzzle(body []byte) {
 	var puzzleMap = new(Field)
@@ -196,7 +207,11 @@ func startPuzzle(body []byte) {
 
 	//fmt.Println(puzzleMap.toString())
 
-	runPuzzle(*puzzleMap, *guard)
+	if !PART_TWO {
+		runPuzzle(*puzzleMap, *guard)
+	} else {
+		runPuzzlePart2(*puzzleMap, *guard)
+	}
 }
 
 func isGuard(symbol byte) bool {
@@ -211,7 +226,8 @@ func isGuard(symbol byte) bool {
 // runs algorithm:
 // Guard walks until obstacle, then turns 90 degrees
 // ends if Guard is outside Field and calculates distinct tiles walked inside Field
-func runPuzzle(puzzleMap Field, guard Guard) {
+func runPuzzle(puzzleMap Field, guard Guard) bool {
+	start := time.Now()
 	for {
 		if !guard.isInArea(puzzleMap.yBorder, puzzleMap.xBorder) {
 			break
@@ -222,8 +238,22 @@ func runPuzzle(puzzleMap Field, guard Guard) {
 		} else {
 			guard.walk()
 		}
+
+		// this actually works lol
+		if time.Until(start) < -(200 * time.Millisecond) {
+			return true
+		}
 	}
 
+	if !PART_TWO {
+		calulateDistinctTiles(puzzleMap, guard)
+		return false
+	}
+
+	return false
+}
+
+func calulateDistinctTiles(puzzleMap Field, guard Guard) {
 	// welp
 	for _, pos := range guard.path {
 		if pos.isInArea(puzzleMap.yBorder, puzzleMap.xBorder) {
@@ -239,5 +269,22 @@ func runPuzzle(puzzleMap Field, guard Guard) {
 
 //////// PART 2 ////////
 
-// It should be enough if u look at an already visited plate after a turn
-// to determine if the guard is stuck in a loop
+func runPuzzlePart2(puzzleMap Field, guard Guard) {
+	counter := 0
+
+	for y, row := range puzzleMap.field {
+		for x := range row {
+			if puzzleMap.isOpen(y, x) {
+				puzzleMap.field[y][x] = 'O'
+
+				if runPuzzle(puzzleMap, guard) {
+					counter += 1
+				}
+
+				puzzleMap.field[y][x] = '.'
+			}
+		}
+	}
+
+	fmt.Printf("Possible Obstacles: %d", counter)
+}
