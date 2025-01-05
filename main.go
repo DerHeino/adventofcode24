@@ -74,10 +74,12 @@ func (f *Field) addAntenna(key rune, value Location) {
 	f.antennaMap[key] = append(f.antennaMap[key], value)
 }
 
-func (f *Field) addAntinode(value Location) {
+func (f *Field) addAntinode(value Location) bool {
 	if f.isInField(value.y, value.x) {
 		f.antinodeField[value.y][value.x] = '#'
+		return true
 	}
+	return false
 }
 
 func (f *Field) isInField(y int, x int) bool {
@@ -94,6 +96,10 @@ func (f *Field) amountOfAntinodes() (amount int) {
 	for y := 0; y < f.yBorder; y++ {
 		for x := 0; x < f.xBorder; x++ {
 			if f.antinodeField[y][x] == '#' {
+				amount++
+			}
+
+			if f.antennaField[y][x] != '.' && f.antinodeField[y][x] != '#' {
 				amount++
 			}
 		}
@@ -202,15 +208,12 @@ func readIntoFieldAndStartPuzzle(body []byte) {
 }
 
 func calculateAllFrequencies(puzzle Field) {
-
 	for _, antennas := range puzzle.antennaMap {
 		calculateFrequencies(antennas, puzzle)
 	}
-
 }
 
 func calculateFrequencies(antennas []Location, puzzle Field) {
-
 	for index, antenna1 := range antennas {
 		if index == len(antennas) {
 			break
@@ -220,11 +223,9 @@ func calculateFrequencies(antennas []Location, puzzle Field) {
 			antenna2 := antennas[i]
 
 			distance, multiplier1, multiplier2 := calculateDirection(antenna1, antenna2)
-			antiNode1 := calculateAntinode(antenna1, distance, multiplier1)
-			antiNode2 := calculateAntinode(antenna2, distance, multiplier2)
 
-			puzzle.addAntinode(antiNode1)
-			puzzle.addAntinode(antiNode2)
+			calculateUntilOutOfField(puzzle, antenna1, distance, multiplier1)
+			calculateUntilOutOfField(puzzle, antenna2, distance, multiplier2)
 		}
 	}
 }
@@ -281,4 +282,19 @@ func calculateAntinode(antenna Location, distance Location, multiplier Location)
 	x := antenna.x + (distance.x * multiplier.x)
 
 	return Location{y, x}
+}
+
+//////// PART 2 implementation ////////
+
+func calculateUntilOutOfField(puzzle Field, antenna Location, distance Location, multiplier Location) {
+	currentNode := antenna
+
+	for {
+		nextNode := calculateAntinode(currentNode, distance, multiplier)
+		if puzzle.addAntinode(nextNode) {
+			currentNode = nextNode
+		} else {
+			break
+		}
+	}
 }
