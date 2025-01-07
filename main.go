@@ -73,6 +73,15 @@ func retrieveSession() string {
  * Read third line (second is empty) into array of wanted "designs"
  */
 
+type Patterns struct {
+	templates []string
+	blacklist []string
+}
+
+func (p *Patterns) append(impossible string) {
+	p.blacklist = append(p.blacklist, impossible)
+}
+
 func parse(body []byte) {
 	var patternsByte []byte
 	var designsByte []byte
@@ -105,12 +114,12 @@ func parse(body []byte) {
 	verifyDesigns(designs, patterns)
 }
 
-func verifyDesigns(designs []string, patterns []string) {
+func verifyDesigns(designs []string, templates []string) {
+	patterns := Patterns{templates, make([]string, 0, 1024)}
 	success := 0
-	impossibleDesigns := make([]string, 0, 1024)
 
 	for _, design := range designs {
-		if verifyPatterns(design, patterns, &impossibleDesigns) {
+		if designPossible(design, &patterns) {
 			success++
 		} else {
 			fmt.Printf("[ FAILURE ] : \"%s\"\n", design)
@@ -121,32 +130,28 @@ func verifyDesigns(designs []string, patterns []string) {
 }
 
 // verify if containsPatterns fails, continue until no patterns are left (that should be fine)
-// if verifyPatterns fails return to last success (I think that one is broken)
-func verifyPatterns(design string, patterns []string, blacklist *[]string) bool {
-	for _, pattern := range containsPatterns(design, patterns, blacklist) {
-		nextDesign := containsPattern(design, pattern)
+// if designPossible fails return to last success (I think that one is broken)
+func designPossible(design string, patterns *Patterns) bool {
+	for _, pattern := range possiblePatterns(design, patterns) {
+		nextDesign := strings.TrimPrefix(design, pattern)
 		if nextDesign == "" {
 			return true
 		}
-		if isSuccess := verifyPatterns(nextDesign, patterns, blacklist); isSuccess {
+		if isSuccess := designPossible(nextDesign, patterns); isSuccess {
 			return true
 		}
 	}
 
-	*blacklist = append(*blacklist, design)
+	patterns.append(design)
 	return false
 }
 
-func containsPattern(design string, pattern string) string {
-	return strings.TrimPrefix(design, pattern)
-}
-
-func containsPatterns(design string, patterns []string, blacklist *[]string) (contains []string) {
-	if isImpossibleDesign(design, blacklist) {
+func possiblePatterns(design string, patterns *Patterns) (contains []string) {
+	if isImpossibleDesign(design, patterns.blacklist) {
 		return
 	}
 
-	for _, pattern := range patterns {
+	for _, pattern := range patterns.templates {
 		if strings.HasPrefix(design, pattern) {
 			contains = append(contains, pattern)
 		}
@@ -155,8 +160,8 @@ func containsPatterns(design string, patterns []string, blacklist *[]string) (co
 	return
 }
 
-func isImpossibleDesign(design string, blacklist *[]string) bool {
-	for _, value := range *blacklist {
+func isImpossibleDesign(design string, blacklist []string) bool {
+	for _, value := range blacklist {
 		if value == design {
 			return true
 		}
